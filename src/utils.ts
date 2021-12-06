@@ -38,3 +38,14 @@ export const checkTradeType = (
       return false;
   }
 };
+
+export const getExponent = (base: number, pow: number): number => {
+  let exponent = 1;
+  let temp = pow / base;
+  while (temp > 1) {
+    temp = temp / 2;
+    exponent++;
+  }
+
+  return exponent;
+};

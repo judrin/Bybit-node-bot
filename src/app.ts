@@ -23,9 +23,10 @@ export const testService = async () => {
 };
 
 // Service methods
-export const getActiveOrders = async (): Promise<IPlaceOrderResponse[]> => {
-  const result = await service.getActiveOrderRequest(CryptoSymbol.BTCUSDT);
-  return result as IPlaceOrderResponse[];
+export const getActiveOrders = async (): Promise<
+  IPlaceOrderResponse | IPlaceOrderResponse[]
+> => {
+  return service.getActiveOrderRequest(CryptoSymbol.BTCUSDT);
 };
 
 export const getPosition = async (): Promise<IGetPosition> => {
