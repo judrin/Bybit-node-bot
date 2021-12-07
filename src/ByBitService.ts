@@ -17,7 +17,6 @@ export interface IGetPosition {
   buy: IPosition;
   sell: IPosition;
 }
-
 class ByBitService {
   constructor(private client: LinearClient) {}
 
@@ -196,6 +195,22 @@ class ByBitService {
     }
 
     return response.result[0] as ITicker;
+  }
+
+  public async cancelActiveOrders(
+    symbol: CryptoSymbol,
+    ids: string[]
+  ): Promise<void> {
+    const promises = ids.map((id) =>
+      this.client.cancelActiveOrder({ symbol, order_id: id })
+    );
+    const results = await Promise.all(promises);
+
+    results.forEach((result) => {
+      if (result.ret_code !== 0) {
+        throw Error(result.ret_msg);
+      }
+    });
   }
 
   public async cancelAllActiveOrders(symbol: CryptoSymbol): Promise<void> {
