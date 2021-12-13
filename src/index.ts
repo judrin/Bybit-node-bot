@@ -18,11 +18,11 @@ const run = async () => {
   await app.runShort();
   await app.loadCurrPosition();
 
-  // setTimeout(() => {
-  //   (async () => {
-  //     await run();
-  //   })();
-  // }, INTERVAL_TIME);
+  setTimeout(() => {
+    (async () => {
+      await run();
+    })();
+  }, INTERVAL_TIME);
 };
 
 app
