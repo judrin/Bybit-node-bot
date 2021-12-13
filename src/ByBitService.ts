@@ -12,6 +12,7 @@ import {
   ITicker,
 } from './bybit';
 import dayjs from 'dayjs';
+import { asyncExcpectInterval } from './utils';
 
 export interface IGetPosition {
   buy: IPosition;
@@ -37,6 +38,30 @@ class ByBitService {
       time_in_force: TimeInForce.GTC,
       close_on_trigger: false,
       reduce_only: false,
+    };
+
+    const orderResponse = await this.client.placeActiveOrder(data);
+
+    if (orderResponse.ret_code !== 0) {
+      throw Error(orderResponse.ret_msg);
+    }
+
+    return orderResponse.result as IPlaceOrderResponse;
+  }
+
+  public async closeMarketOrder(
+    symbol: CryptoSymbol,
+    qty: number,
+    side: Side
+  ): Promise<IPlaceOrderResponse> {
+    const data: IOrderRequest = {
+      side: side === Side.Buy ? Side.Sell : Side.Buy,
+      order_type: OrderType.Market,
+      qty,
+      symbol,
+      time_in_force: TimeInForce.GTC,
+      close_on_trigger: false,
+      reduce_only: true,
     };
 
     const orderResponse = await this.client.placeActiveOrder(data);
@@ -78,32 +103,23 @@ class ByBitService {
     orderId: string,
     symbol: CryptoSymbol
   ): Promise<IPlaceOrderResponse | undefined> {
-    return new Promise(async (resolve, reject) => {
-      try {
-        const maxTimeout = 10;
-        const startTime = dayjs();
-        let filled = false;
-        while (dayjs().diff(startTime, 'second') < maxTimeout) {
-          await new Promise((r) => setTimeout(r, 500));
-          const result = (await this.getActiveOrderRequest(
-            symbol,
-            orderId
-          )) as IPlaceOrderResponse;
+    return asyncExcpectInterval<IPlaceOrderResponse>(
+      500,
+      10000,
+      async (resolve) => {
+        const result = (await this.getActiveOrderRequest(
+          symbol,
+          orderId
+        )) as IPlaceOrderResponse;
 
-          if (result && result.order_status == OrderStatus.Filled) {
-            filled = true;
-            resolve(result);
-          }
+        if (result && result.order_status == OrderStatus.Filled) {
+          resolve(result);
+          return true;
         }
 
-        if (!filled) {
-          throw Error('Active order request timeout');
-        }
-      } catch (error) {
-        console.error(error);
-        reject(undefined);
+        return false;
       }
-    });
+    );
   }
 
   public async setLimitClose(
@@ -123,8 +139,6 @@ class ByBitService {
       reduce_only: true,
     };
 
-    // calcPercentageChange(price, side === Side.Sell ? -profit : profit, 2);
-
     const orderResult = await this.client.placeActiveOrder(data);
 
     if (orderResult.ret_code !== 0) {
@@ -137,15 +151,16 @@ class ByBitService {
   public async setTradingStop(
     side: Side,
     symbol: CryptoSymbol,
-    price: number
+    price?: number
   ): Promise<void> {
     const tp: ITradingStop = {
       symbol,
       side,
-      stop_loss: price,
     };
 
-    // calcPercentageChange(price, side === Side.Sell ? stoploss : -stoploss, 2);
+    if (price) {
+      tp.stop_loss = price;
+    }
 
     const tradingStopResult = await this.client.setTradingStop(tp);
 

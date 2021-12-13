@@ -3,6 +3,7 @@ import { LinearClient } from 'bybit-api';
 import { CryptoSymbol, IPlaceOrderResponse, Side, TradeType } from './bybit';
 import ByBitService, { IGetPosition } from './ByBitService';
 import {
+  asyncExcpectInterval,
   calcPercentageChange,
   checkTradeType,
   getExponent,
@@ -33,6 +34,8 @@ class App {
   private activeOrders: IPlaceOrderResponse | IPlaceOrderResponse[];
   private longEnabled: boolean = false;
   private shortEnabled: boolean = false;
+  private longStoploss: boolean = false;
+  private shortStoploss: boolean = false;
   private longSizeExceeded: boolean = false;
   private shortSizeExceeded: boolean = false;
 
@@ -67,10 +70,11 @@ class App {
     try {
       const config = await this.repo.getConfig();
       const posStatus = await this.repo.getPositionStatus();
-
       this.setConfig(config);
-      this.longEnabled = posStatus.long_trigger;
-      this.shortEnabled = posStatus.short_trigger;
+      this.longEnabled = !!posStatus.long_trigger;
+      this.shortEnabled = !!posStatus.short_trigger;
+      this.longStoploss = posStatus.long_stoploss;
+      this.shortStoploss = posStatus.short_stoploss;
     } catch (error) {
       throw Error(error);
     }
@@ -154,6 +158,7 @@ class App {
 
   public async loadCurrPosition() {
     this.position = await this.service.getPosition(this.symbol);
+    console.log(this.position);
   }
 
   public async loadActiveOrders() {
@@ -161,6 +166,21 @@ class App {
   }
 
   public async runLong(): Promise<void> {
+    if (this.longStoploss) {
+      if (this.position.buy.size) {
+        await this.service.closeMarketOrder(
+          this.symbol,
+          this.position.buy.size,
+          Side.Buy
+        );
+      }
+      await this.repo.updateDocument(
+        { type_id: 'trigger', timestamp: 0 },
+        { long_stoploss: false, long_trigger: false }
+      );
+      logger.info('Long stop triggered');
+      return;
+    }
     if (!this.longEnabled) return;
     const filteredActiveOrders = this.filterActiveOrders(this.activeOrders);
 
@@ -216,6 +236,21 @@ class App {
   }
 
   public async runShort(): Promise<void> {
+    if (this.shortStoploss) {
+      if (this.position.sell.size) {
+        await this.service.closeMarketOrder(
+          this.symbol,
+          this.position.sell.size,
+          Side.Sell
+        );
+      }
+      await this.repo.updateDocument(
+        { type_id: 'trigger', timestamp: 0 },
+        { short_stoploss: false, short_trigger: false }
+      );
+      logger.info('Short stop triggered');
+      return;
+    }
     if (!this.shortEnabled) return;
     const filteredActiveOrders = this.filterActiveOrders(this.activeOrders);
 

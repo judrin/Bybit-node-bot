@@ -24,6 +24,20 @@ export interface IByBitConfigDocument extends IByBitDocument {
 export interface IByBitTriggerDocument extends IByBitDocument {
   short_trigger: boolean;
   long_trigger: boolean;
+  short_stoploss: boolean;
+  long_stoploss: boolean;
+}
+
+export type DynamicObject = Record<string, any>;
+export type Key = Record<string, string | number>;
+export type AttributeNames = Record<string, string>;
+
+interface UpdateDocumentParams {
+  TableName: string;
+  Key: Key;
+  UpdateExpression: string;
+  ExpressionAttributeNames: AttributeNames;
+  ExpressionAttributeValues: DynamicObject;
 }
 
 const TABLE_NAME = 'bybit-orders';
@@ -87,6 +101,40 @@ class ByBitRepo {
       ...data,
       type_id: 'entry',
       timestamp: new Date().getTime(),
+    };
+  }
+
+  public async updateDocument(
+    key: Record<string, string | number>,
+    data: Record<string, any>
+  ): Promise<PromiseResult<DocumentClient.UpdateItemOutput, AWSError>> {
+    return this.docClient
+      .update(this.toUpdateDocumentParams(key, data))
+      .promise();
+  }
+
+  private toUpdateDocumentParams(
+    key: Key,
+    data: DynamicObject
+  ): UpdateDocumentParams {
+    let updateExpression = 'set';
+    const expressionAttributeNames: AttributeNames = {};
+    const expressionAttributeValues: DynamicObject = {};
+
+    for (const property in data) {
+      updateExpression += ` #${property} = :${property},`;
+      expressionAttributeNames[`#${property}`] = property;
+      expressionAttributeValues[`:${property}`] = data[property];
+    }
+
+    updateExpression = updateExpression.slice(0, -1);
+
+    return {
+      TableName: TABLE_NAME,
+      Key: key,
+      UpdateExpression: updateExpression,
+      ExpressionAttributeNames: expressionAttributeNames,
+      ExpressionAttributeValues: expressionAttributeValues,
     };
   }
 }

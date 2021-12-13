@@ -1,3 +1,4 @@
+import dayjs from 'dayjs';
 import { createRollingFileLogger } from 'simple-node-logger';
 import { OrderType, Side, TradeType } from './bybit';
 
@@ -48,4 +49,30 @@ export const getExponent = (base: number, pow: number): number => {
   }
 
   return exponent;
+};
+
+export const asyncExcpectInterval = async <T>(
+  intervalTime: number,
+  timeout: number,
+  asyncCallback: (r: (value: unknown) => void) => Promise<boolean>,
+  errorMessage?: string
+): Promise<T | undefined> => {
+  return new Promise<T | undefined>(async (resolve, reject) => {
+    try {
+      const startTime = dayjs();
+      let success = false;
+
+      while (dayjs().diff(startTime, 'ms') < timeout) {
+        await new Promise((r) => setTimeout(r, intervalTime));
+        success = await asyncCallback(resolve);
+      }
+
+      if (!success) {
+        throw Error(errorMessage || 'AsyncInterval Timeout.');
+      }
+    } catch (error) {
+      console.error(error);
+      reject(undefined);
+    }
+  });
 };
